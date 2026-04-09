@@ -119,7 +119,7 @@ Foi escolhido o uso de **LLM com visão computacional (GPT-4o)** por ser a abord
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/archanalyzer.git
+git clone https://github.com/diegosdomingos/archanalyzer.git
 cd archanalyzer
 ```
 
