@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from app.main import app
 
 client = TestClient(app)
@@ -13,10 +13,15 @@ def test_health():
 
 @patch("app.routers.gateway.httpx.AsyncClient")
 def test_upload_proxies_to_upload_service(mock_client):
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.json.return_value = {"job_id": "123", "status": "received"}
-    mock_response.raise_for_status = AsyncMock()
-    mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+    mock_response.raise_for_status = MagicMock()
+
+    mock_async_client = MagicMock()
+    mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+    mock_async_client.__aexit__ = AsyncMock(return_value=None)
+    mock_async_client.post = AsyncMock(return_value=mock_response)
+    mock_client.return_value = mock_async_client
 
     with open("tests/test_image.png", "wb") as f:
         f.write(b"fake image content")
