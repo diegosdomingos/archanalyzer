@@ -11,11 +11,12 @@ def test_health():
     assert response.json()["status"] == "ok"
 
 
-@patch("app.routers.report.get_db")
-def test_report_not_found(mock_db):
+def test_report_not_found():
     mock_session = MagicMock()
     mock_session.query.return_value.filter.return_value.first.return_value = None
-    mock_db.return_value = iter([mock_session])
 
-    response = client.get("/report/job-inexistente")
+    with patch("app.routers.report.get_db", return_value=iter([mock_session])):
+        response = client.get("/report/job-inexistente")
+
     assert response.status_code == 404
+    assert "não encontrado" in response.json()["detail"]
