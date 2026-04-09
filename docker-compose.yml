@@ -1,0 +1,86 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: archanalyzer
+      POSTGRES_PASSWORD: archanalyzer
+      POSTGRES_DB: archanalyzer
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archanalyzer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      UPLOAD_SERVICE_URL: http://upload-service:8001
+      REPORT_SERVICE_URL: http://report-service:8003
+    depends_on:
+      - upload-service
+      - report-service
+
+  upload-service:
+    build: ./upload-service
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL: postgresql://archanalyzer:archanalyzer@postgres:5432/archanalyzer
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+
+  processing-service:
+    build: ./processing-service
+    environment:
+      DATABASE_URL: postgresql://archanalyzer:archanalyzer@postgres:5432/archanalyzer
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+
+  report-service:
+    build: ./report-service
+    ports:
+      - "8003:8003"
+    environment:
+      DATABASE_URL: postgresql://archanalyzer:archanalyzer@postgres:5432/archanalyzer
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  uploads_data:
