@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArchAnalyzer — Painel Didático</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; color: #1a1a1a; font-size: 14px; }
+    .topbar { background: #fff; border-bottom: 0.5px solid #e0e0da; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar h1 { font-size: 16px; font-weight: 500; }
+    .topbar p { font-size: 12px; color: #888; }
+    .services-bar { background: #fff; border-bottom: 0.5px solid #e0e0da; padding: 8px 24px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 6px; }
+    .svc-gateway { background: #EEEDFE; color: #3C3489; }
+    .svc-upload { background: #E1F5EE; color: #085041; }
+    .svc-rabbit { background: #FAEEDA; color: #633806; }
+    .svc-process { background: #FAECE7; color: #712B13; }
+    .svc-openai { background: #EAF3DE; color: #27500A; }
+    .svc-report { background: #E6F1FB; color: #0C447C; }
+    .main { max-width: 960px; margin: 0 auto; padding: 24px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .full { grid-column: 1 / -1; }
+    .card { background: #fff; border: 0.5px solid #e0e0da; border-radius: 12px; padding: 16px 20px; transition: opacity .3s; }
+    .card.disabled { opacity: .4; pointer-events: none; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .card-header span { font-size: 14px; font-weight: 500; }
+    .section-label { font-size: 11px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+    .drop-zone { border: 1.5px dashed #ccc; border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; transition: background .2s; margin-bottom: 12px; }
+    .drop-zone:hover { background: #f5f5f3; }
+    .drop-zone p { font-size: 13px; font-weight: 500; }
+    .drop-zone small { font-size: 11px; color: #888; margin-top: 4px; display: block; }
+    .file-info { background: #f5f5f3; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #666; margin-bottom: 12px; display: none; }
+    .btn { background: transparent; border: 0.5px solid #ccc; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; color: #1a1a1a; transition: background .15s, transform .1s; }
+    .btn:hover { background: #f5f5f3; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+    .btn-primary:hover { opacity: .85; background: #1a1a1a; }
+    .btn-row { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+    .log-box { background: #f5f5f3; border-radius: 8px; padding: 10px 12px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; min-height: 80px; max-height: 160px; overflow-y: auto; line-height: 1.8; }
+    .log-line { display: block; color: #888; }
+    .log-line.ok { color: #27500A; }
+    .log-line.info { color: #0C447C; }
+    .log-line.warn { color: #712B13; }
+    .queue-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #f5f5f3; border-radius: 8px; margin-bottom: 6px; }
+    .q-dot { width: 8px; height: 8px; border-radius: 50%; background: #EF9F27; flex-shrink: 0; }
+    .q-dot.done { background: #639922; }
+    .comp-tag { display: inline-block; background: #f5f5f3; border: 0.5px solid #e0e0da; border-radius: 6px; padding: 3px 9px; font-size: 12px; margin: 2px; }
+    .risk-item { padding: 6px 10px; border-left: 2px solid #E24B4A; background: #FCEBEB; border-radius: 0 6px 6px 0; margin-bottom: 6px; font-size: 12px; color: #501313; }
+    .rec-item { padding: 6px 10px; border-left: 2px solid #639922; background: #EAF3DE; border-radius: 0 6px 6px 0; margin-bottom: 6px; font-size: 12px; color: #173404; }
+    .progress-bar { margin-top: 20px; }
+    .step-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid #f0f0ee; }
+    .step-row:last-child { border-bottom: none; }
+    .step-num { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; background: #f5f5f3; color: #888; }
+    .step-num.active { background: #EEEDFE; color: #3C3489; }
+    .step-num.done { background: #EAF3DE; color: #27500A; }
+    .step-text { font-size: 13px; color: #555; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .spinner { width: 12px; height: 12px; border: 1.5px solid #ccc; border-top-color: #1a1a1a; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; vertical-align: middle; margin-right: 5px; }
+    .pulsing { animation: pulse 1.2s ease-in-out infinite; }
+    .report-meta { font-size: 12px; color: #888; margin-bottom: 16px; font-family: 'SF Mono', monospace; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>ArchAnalyzer</h1>
+    <p>Painel didático de microsserviços</p>
+  </div>
+  <button class="btn" onclick="resetAll()">Reiniciar demo</button>
+</div>
+
+<div class="services-bar">
+  <span class="badge svc-gateway">API Gateway :8000</span>
+  <span class="badge svc-upload">Upload Service :8001</span>
+  <span class="badge svc-rabbit">RabbitMQ :5672</span>
+  <span class="badge svc-process">Processing Service</span>
+  <span class="badge svc-openai">OpenAI GPT-4o</span>
+  <span class="badge svc-report">Report Service :8003</span>
+</div>
+
+<div class="main">
+  <div class="grid">
+
+    <div class="card full">
+      <div class="card-header">
+        <span>Passo 1 — Upload do diagrama</span>
+        <span class="badge svc-gateway">API Gateway</span>
+      </div>
+      <div class="drop-zone" onclick="document.getElementById('fi').click()">
+        <input type="file" id="fi" accept=".png,.jpg,.jpeg,.pdf" style="display:none" onchange="handleFile(this.files[0])">
+        <p id="drop-txt">Clique para selecionar um diagrama</p>
+        <small>PNG, JPG ou PDF · máx. 10MB</small>
+      </div>
+      <div class="file-info" id="file-info"></div>
+      <button class="btn btn-primary" id="btn-upload" onclick="doUpload()" disabled>Enviar para API Gateway</button>
+    </div>
+
+    <div class="card disabled" id="card-upload">
+      <div class="card-header">
+        <span>Passo 2 — Upload Service</span>
+        <span class="badge svc-upload">Upload Service</span>
+      </div>
+      <p class="section-label">Log do serviço</p>
+      <div class="log-box" id="log-upload"><span class="log-line">Aguardando requisição...</span></div>
+    </div>
+
+    <div class="card disabled" id="card-queue">
+      <div class="card-header">
+        <span>Passo 3 — Fila RabbitMQ</span>
+        <span class="badge svc-rabbit">RabbitMQ</span>
+      </div>
+      <p class="section-label">Mensagens na fila</p>
+      <div id="queue-list"><p style="font-size:12px;color:#888">Fila vazia</p></div>
+      <div class="btn-row">
+        <button class="btn" id="btn-process" onclick="doProcess()" disabled>Processar fila</button>
+        <span id="queue-count" style="font-size:12px;color:#888"></span>
+      </div>
+    </div>
+
+    <div class="card disabled" id="card-processing">
+      <div class="card-header">
+        <span>Passo 4 — Processing Service</span>
+        <span class="badge svc-process">Processing Service</span>
+      </div>
+      <p class="section-label">Log de processamento</p>
+      <div class="log-box" id="log-processing"><span class="log-line">Aguardando mensagem da fila...</span></div>
+    </div>
+
+    <div class="card disabled" id="card-ai">
+      <div class="card-header">
+        <span>Passo 5 — Análise da IA</span>
+        <span class="badge svc-openai">OpenAI GPT-4o</span>
+      </div>
+      <p class="section-label">Log da análise</p>
+      <div class="log-box" id="log-ai"><span class="log-line">Aguardando envio para IA...</span></div>
+    </div>
+
+    <div class="card disabled full" id="card-report-btn">
+      <div class="card-header">
+        <span>Passo 6 — Relatório gerado</span>
+        <span class="badge svc-report">Report Service</span>
+      </div>
+      <p style="font-size:12px;color:#888;margin-bottom:12px">Relatório persistido no PostgreSQL e disponível via API REST.</p>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-report" onclick="showReport()" disabled>Exibir relatório</button>
+        <span id="report-status" style="font-size:12px;color:#888"></span>
+      </div>
+    </div>
+
+    <div class="card full" id="card-report" style="display:none">
+      <div class="card-header">
+        <span>Relatório técnico gerado pela IA</span>
+        <span class="badge svc-report">Report Service</span>
+      </div>
+      <p class="report-meta" id="report-meta"></p>
+      <div style="margin-bottom:1rem">
+        <p class="section-label">Componentes identificados</p>
+        <div id="r-components"></div>
+      </div>
+      <div style="margin-bottom:1rem">
+        <p class="section-label">Riscos arquiteturais</p>
+        <div id="r-risks"></div>
+      </div>
+      <div>
+        <p class="section-label">Recomendações</p>
+        <div id="r-recs"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="card progress-bar">
+    <p class="section-label">Progresso do fluxo</p>
+    <div class="step-row"><div class="step-num" id="sn1">1</div><span class="step-text">Upload recebido pelo API Gateway</span></div>
+    <div class="step-row"><div class="step-num" id="sn2">2</div><span class="step-text">Arquivo salvo e job criado no banco</span></div>
+    <div class="step-row"><div class="step-num" id="sn3">3</div><span class="step-text">Mensagem publicada na fila RabbitMQ</span></div>
+    <div class="step-row"><div class="step-num" id="sn4">4</div><span class="step-text">Processing Service consumiu a fila</span></div>
+    <div class="step-row"><div class="step-num" id="sn5">5</div><span class="step-text">GPT-4o analisou o diagrama</span></div>
+    <div class="step-row"><div class="step-num" id="sn6">6</div><span class="step-text">Relatório persistido no Report Service</span></div>
+  </div>
+</div>
+
+<script>
+  const API = 'http://localhost:8000/api/v1';
+  let jobId = null, pollTimer = null, reportData = null, selectedFile = null;
+
+  function addLog(id, msg, cls='') {
+    const b = document.getElementById(id);
+    const ts = new Date().toLocaleTimeString('pt-BR');
+    b.innerHTML += `<span class="log-line ${cls}">[${ts}] ${msg}</span>`;
+    b.scrollTop = b.scrollHeight;
+  }
+
+  function setStep(n, state) {
+    const el = document.getElementById('sn' + n);
+    el.className = 'step-num ' + (state === 'done' ? 'done' : state === 'active' ? 'active' : '');
+    if (state === 'done') el.textContent = '✓';
+  }
+
+  function enable(id) { document.getElementById(id).classList.remove('disabled'); }
+
+  function handleFile(f) {
+    if (!f) return;
+    selectedFile = f;
+    document.getElementById('drop-txt').textContent = f.name;
+    const info = document.getElementById('file-info');
+    info.style.display = 'block';
+    info.textContent = `Arquivo: ${f.name} · ${(f.size / 1024).toFixed(0)} KB · ${f.type}`;
+    document.getElementById('btn-upload').disabled = false;
+  }
+
+  async function doUpload() {
+    if (!selectedFile) return;
+    const btn = document.getElementById('btn-upload');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Enviando...';
+    enable('card-upload');
+    addLog('log-upload', 'POST /api/v1/upload recebido pelo API Gateway', 'info');
+    addLog('log-upload', `Arquivo: ${selectedFile.name} (${(selectedFile.size/1024).toFixed(0)}KB)`, 'info');
+
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+
+    try {
+      const r = await fetch(API + '/upload', { method: 'POST', body: fd });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      jobId = d.job_id;
+
+      addLog('log-upload', 'Arquivo salvo em /app/uploads/', 'ok');
+      addLog('log-upload', 'Job criado no PostgreSQL · status: received', 'ok');
+      addLog('log-upload', `Job ID: ${jobId}`, 'ok');
+      setStep(1, 'done'); setStep(2, 'done'); setStep(3, 'done');
+      btn.textContent = 'Enviado!';
+
+      enable('card-queue');
+      document.getElementById('queue-list').innerHTML = `
+        <div class="queue-item">
+          <div class="q-dot pulsing"></div>
+          <div>
+            <p style="font-size:13px;font-weight:500">${selectedFile.name}</p>
+            <p style="font-size:11px;color:#888">job_id: ${jobId.substring(0, 20)}...</p>
+          </div>
+        </div>`;
+      document.getElementById('queue-count').textContent = '1 mensagem aguardando';
+      document.getElementById('btn-process').disabled = false;
+
+    } catch (e) {
+      addLog('log-upload', 'Erro: ' + e.message, 'warn');
+      btn.disabled = false;
+      btn.textContent = 'Tentar novamente';
+    }
+  }
+
+  async function doProcess() {
+    const btn = document.getElementById('btn-process');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Processando...';
+    const dot = document.querySelector('.q-dot');
+    if (dot) { dot.classList.remove('pulsing'); dot.classList.add('done'); }
+
+    enable('card-processing');
+    enable('card-ai');
+    setStep(4, 'active');
+
+    addLog('log-processing', 'Mensagem consumida da fila analysis_queue', 'info');
+    addLog('log-processing', `job_id: ${jobId}`, 'info');
+    await delay(800);
+    addLog('log-processing', 'Job atualizado · status: processing', 'ok');
+    setStep(4, 'done'); setStep(5, 'active');
+
+    await delay(600);
+    addLog('log-ai', 'Arquivo carregado e convertido para base64', 'info');
+    await delay(400);
+    addLog('log-ai', 'Requisição enviada para OpenAI GPT-4o', 'info');
+    addLog('log-ai', 'model: gpt-4o · detail: high · max_tokens: 1000', 'info');
+
+    pollTimer = setInterval(async () => {
+      try {
+        const r = await fetch(API + '/status/' + jobId);
+        const d = await r.json();
+        if (d.status === 'analyzed') {
+          clearInterval(pollTimer);
+          addLog('log-ai', 'Resposta recebida da OpenAI', 'ok');
+          addLog('log-ai', 'Guardrail: JSON validado com sucesso', 'ok');
+          addLog('log-ai', 'Campos: components, risks, recommendations verificados', 'ok');
+          addLog('log-processing', 'Relatório persistido no PostgreSQL', 'ok');
+          addLog('log-processing', 'Job atualizado · status: analyzed', 'ok');
+          document.getElementById('queue-list').innerHTML = '<p style="font-size:12px;color:#888">Fila vazia · mensagem processada</p>';
+          document.getElementById('queue-count').textContent = '0 mensagens';
+          btn.textContent = 'Concluído';
+          setStep(5, 'done'); setStep(6, 'done');
+          enable('card-report-btn');
+          document.getElementById('btn-report').disabled = false;
+          document.getElementById('report-status').textContent = 'Disponível via GET /api/v1/report/' + jobId.substring(0,8) + '...';
+          const rep = await fetch(API + '/report/' + jobId);
+          reportData = (await rep.json()).report;
+        } else if (d.status === 'error') {
+          clearInterval(pollTimer);
+          addLog('log-processing', 'Erro no processamento · status: error', 'warn');
+          btn.textContent = 'Erro';
+        }
+      } catch (e) {}
+    }, 2500);
+  }
+
+  function showReport() {
+    if (!reportData) return;
+    const card = document.getElementById('card-report');
+    card.style.display = 'block';
+    document.getElementById('report-meta').textContent = `GET /api/v1/report/${jobId}`;
+    document.getElementById('r-components').innerHTML = reportData.components.map(c => `<span class="comp-tag">${c}</span>`).join('');
+    document.getElementById('r-risks').innerHTML = reportData.risks.map(r => `<div class="risk-item">${r}</div>`).join('');
+    document.getElementById('r-recs').innerHTML = reportData.recommendations.map(r => `<div class="rec-item">${r}</div>`).join('');
+    document.getElementById('btn-report').textContent = 'Relatório exibido';
+    document.getElementById('btn-report').disabled = true;
+    card.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function resetAll() {
+    clearInterval(pollTimer);
+    jobId = null; reportData = null; selectedFile = null;
+    ['card-upload','card-queue','card-processing','card-ai','card-report-btn'].forEach(id => {
+      document.getElementById(id).classList.add('disabled');
+    });
+    document.getElementById('card-report').style.display = 'none';
+    document.getElementById('log-upload').innerHTML = '<span class="log-line">Aguardando requisição...</span>';
+    document.getElementById('log-processing').innerHTML = '<span class="log-line">Aguardando mensagem da fila...</span>';
+    document.getElementById('log-ai').innerHTML = '<span class="log-line">Aguardando envio para IA...</span>';
+    document.getElementById('queue-list').innerHTML = '<p style="font-size:12px;color:#888">Fila vazia</p>';
+    document.getElementById('queue-count').textContent = '';
+    document.getElementById('drop-txt').textContent = 'Clique para selecionar um diagrama';
+    document.getElementById('file-info').style.display = 'none';
+    document.getElementById('btn-upload').disabled = true;
+    document.getElementById('btn-upload').textContent = 'Enviar para API Gateway';
+    document.getElementById('btn-process').disabled = true;
+    document.getElementById('btn-process').textContent = 'Processar fila';
+    document.getElementById('btn-report').disabled = true;
+    document.getElementById('btn-report').textContent = 'Exibir relatório';
+    document.getElementById('report-status').textContent = '';
+    document.getElementById('fi').value = '';
+    for (let i = 1; i <= 6; i++) { const el = document.getElementById('sn' + i); el.className = 'step-num'; el.textContent = i; }
+  }
+
+  function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
