@@ -3,17 +3,18 @@ import json
 import logging
 import aio_pika
 from datetime import datetime
-from app.core.config import RABBITMQ_URL
+from app.core.config import RABBITMQ_URL, setup_logging
 from app.core.database import get_session, create_tables
-from app.core.ai_analyzer import analyze_diagram
+from app.core.orchestrator import run_pipeline
+from app.core.rag import build_vectorstore
 from app.models.job import Job
 from app.models.report import Report
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+setup_logging()
 logger = logging.getLogger(__name__)
+
+# Constrói o vectorstore uma única vez na inicialização
+vectorstore = None
 
 
 async def process_message(message: aio_pika.IncomingMessage):
@@ -21,21 +22,28 @@ async def process_message(message: aio_pika.IncomingMessage):
         body = json.loads(message.body.decode())
         job_id = body["job_id"]
         file_path = body["file_path"]
+        job = None
 
-        logger.info(f"Processando job {job_id}")
+        logger.info(json.dumps({"event": "job_started", "job_id": job_id}))
         db = get_session()
 
         try:
             job = db.query(Job).filter(Job.id == job_id).first()
             if not job:
-                logger.error(f"Job {job_id} não encontrado no banco.")
+                logger.error(json.dumps({"event": "job_not_found", "job_id": job_id}))
                 return
 
             job.status = "processing"
+            job.agent_status = "Iniciando pipeline de agentes..."
             job.updated_at = datetime.utcnow()
             db.commit()
 
-            result = analyze_diagram(file_path)
+            def update_agent_status(msg):
+                job.agent_status = msg
+                job.updated_at = datetime.utcnow()
+                db.commit()
+
+            result = run_pipeline(file_path, vectorstore=vectorstore, update_status=update_agent_status)
 
             report = Report(
                 job_id=job_id,
@@ -47,15 +55,16 @@ async def process_message(message: aio_pika.IncomingMessage):
             db.add(report)
 
             job.status = "analyzed"
+            job.agent_status = "Pipeline concluído com sucesso."
             job.updated_at = datetime.utcnow()
             db.commit()
-
-            logger.info(f"Job {job_id} analisado com sucesso.")
+            logger.info(json.dumps({"event": "job_completed", "job_id": job_id}))
 
         except Exception as e:
-            logger.error(f"Erro ao processar job {job_id}: {e}")
+            logger.error(json.dumps({"event": "job_error", "job_id": job_id, "error": str(e)}))
             if job:
                 job.status = "error"
+                job.agent_status = f"Erro: {str(e)}"
                 job.updated_at = datetime.utcnow()
                 db.commit()
         finally:
@@ -63,9 +72,14 @@ async def process_message(message: aio_pika.IncomingMessage):
 
 
 async def main():
+    global vectorstore
     create_tables()
-    logger.info("Processing Service iniciado. Aguardando mensagens...")
 
+    logger.info("Processing Service iniciado. Construindo base RAG...")
+    vectorstore = build_vectorstore()
+    logger.info("Base RAG construída com sucesso.")
+
+    logger.info("Aguardando mensagens...")
     connection = await aio_pika.connect_robust(RABBITMQ_URL)
     channel = await connection.channel()
     await channel.set_qos(prefetch_count=1)

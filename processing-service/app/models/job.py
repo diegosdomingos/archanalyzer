@@ -11,5 +11,6 @@ class Job(Base):
     filename = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
     status = Column(String, nullable=False, default="received")
+    agent_status = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

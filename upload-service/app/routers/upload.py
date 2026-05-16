@@ -61,10 +61,15 @@ async def upload_diagram(file: UploadFile = File(...), db: Session = Depends(get
 
     return {"job_id": job_id, "status": job.status, "filename": file.filename}
 
-
 @router.get("/status/{job_id}")
 def get_status(job_id: str, db: Session = Depends(get_db)):
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job não encontrado.")
-    return {"job_id": job.id, "status": job.status, "filename": job.filename, "created_at": job.created_at}
+    return {
+        "job_id": job.id,
+        "status": job.status,
+        "agent_status": job.agent_status,
+        "filename": job.filename,
+        "created_at": job.created_at
+    }

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArchAnalyzer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; color: #1a1a1a; font-size: 14px; min-height: 100vh; }
+    .topbar { padding: 14px 24px; background: #fff; border-bottom: 0.5px solid #e0e0da; display: flex; align-items: center; justify-content: space-between; }
+    .topbar h1 { font-size: 16px; font-weight: 500; }
+    .topbar p { font-size: 12px; color: #888; }
+    .main { max-width: 640px; margin: 0 auto; padding: 32px 24px; width: 100%; }
+    .drop-zone { border: 1.5px dashed #ccc; border-radius: 12px; padding: 2.5rem; text-align: center; cursor: pointer; transition: all .2s; margin-bottom: 16px; background: #fff; }
+    .drop-zone:hover, .drop-zone.drag { background: #f0f0ee; border-color: #999; }
+    .drop-zone.done { border-style: solid; border-color: #639922; background: #f6faf0; }
+    .drop-zone svg { margin: 0 auto 12px; display: block; }
+    .drop-zone p { font-size: 14px; font-weight: 500; }
+    .drop-zone small { font-size: 12px; color: #888; margin-top: 4px; display: block; }
+    .log-card { background: #fff; border: 0.5px solid #e0e0da; border-radius: 12px; overflow: hidden; margin-bottom: 16px; display: none; }
+    .log-header { padding: 10px 16px; background: #f5f5f3; border-bottom: 0.5px solid #e0e0da; font-size: 12px; font-weight: 500; color: #555; display: flex; align-items: center; gap: 8px; }
+    .log-body { padding: 12px 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.9; max-height: 200px; overflow-y: auto; }
+    .log-line { display: block; color: #888; }
+    .log-line.ok { color: #27500A; }
+    .log-line.info { color: #0C447C; }
+    .log-line.warn { color: #712B13; }
+    .report-card { background: #fff; border: 0.5px solid #e0e0da; border-radius: 12px; padding: 20px; display: none; margin-bottom: 16px; }
+    .report-title { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+    .report-meta { font-size: 12px; color: #888; font-family: monospace; margin-bottom: 20px; }
+    .section-label { font-size: 11px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; margin-top: 16px; }
+    .section-label:first-of-type { margin-top: 0; }
+    .comp-tag { display: inline-block; background: #f5f5f3; border: 0.5px solid #e0e0da; border-radius: 6px; padding: 3px 10px; font-size: 12px; margin: 2px; }
+    .risk-item { padding: 7px 12px; border-left: 2px solid #E24B4A; background: #FCEBEB; border-radius: 0 6px 6px 0; margin-bottom: 6px; font-size: 13px; color: #501313; }
+    .rec-item { padding: 7px 12px; border-left: 2px solid #639922; background: #EAF3DE; border-radius: 0 6px 6px 0; margin-bottom: 6px; font-size: 13px; color: #173404; }
+    .btn-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+    .btn { background: transparent; border: 0.5px solid #ccc; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; color: #1a1a1a; transition: background .15s, transform .1s; }
+    .btn:hover { background: #f5f5f3; }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+    .btn-primary:hover { opacity: .85; background: #1a1a1a; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; display: inline-block; margin-right: 6px; }
+    .dot.active { background: #7F77DD; animation: pulse .8s ease-in-out infinite; }
+    .dot.done { background: #639922; }
+    .dot.error { background: #E24B4A; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>ArchAnalyzer</h1>
+    <p>Análise automática de diagramas com IA</p>
+  </div>
+  <button class="btn" onclick="resetAll()">Nova análise</button>
+</div>
+
+<div class="main">
+
+  <div class="drop-zone" id="drop-zone"
+    onclick="document.getElementById('fi').click()"
+    ondragover="event.preventDefault();this.classList.add('drag')"
+    ondragleave="this.classList.remove('drag')"
+    ondrop="handleDrop(event)">
+    <input type="file" id="fi" accept=".png,.jpg,.jpeg,.pdf" style="display:none" onchange="handleFile(this.files[0])">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <p id="drop-txt">Arraste um diagrama ou clique para selecionar</p>
+    <small id="drop-sub">PNG, JPG ou PDF · máx. 10MB</small>
+  </div>
+
+  <div class="log-card" id="log-card">
+    <div class="log-header">
+      <span class="dot" id="log-dot"></span>
+      <span id="log-status">Processando...</span>
+    </div>
+    <div class="log-body" id="log-body"></div>
+  </div>
+
+  <div class="report-card" id="report-card">
+    <p class="report-title">Relatório técnico</p>
+    <p class="report-meta" id="report-meta"></p>
+
+    <p class="section-label">Componentes identificados</p>
+    <div id="r-components"></div>
+
+    <p class="section-label">Riscos arquiteturais</p>
+    <div id="r-risks"></div>
+
+    <p class="section-label">Recomendações</p>
+    <div id="r-recs"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="downloadPDF()">Baixar PDF</button>
+      <button class="btn" onclick="downloadJSON()">Baixar JSON</button>
+      <button class="btn" onclick="resetAll()">Nova análise</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const API = 'http://localhost:8000/api/v1';
+  let jobId = null, pollTimer = null, reportData = null, lastAgentStatus = null;
+
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('drop-zone').classList.remove('drag');
+    handleFile(e.dataTransfer.files[0]);
+  }
+
+  function handleFile(f) {
+    if (!f) return;
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+    if (!allowed.includes(f.type)) { alert('Use PNG, JPG ou PDF.'); return; }
+    if (f.size > 10 * 1024 * 1024) { alert('Máximo 10MB.'); return; }
+    document.getElementById('drop-txt').textContent = f.name;
+    document.getElementById('drop-sub').textContent = Math.round(f.size / 1024) + ' KB · ' + f.type;
+    document.getElementById('drop-zone').classList.add('done');
+    doUpload(f);
+  }
+
+  function addLog(msg, cls = '') {
+    const b = document.getElementById('log-body');
+    const ts = new Date().toLocaleTimeString('pt-BR');
+    b.innerHTML += `<span class="log-line ${cls}">[${ts}] ${msg}</span>`;
+    b.scrollTop = b.scrollHeight;
+  }
+
+  function setLogStatus(msg, state = 'active') {
+    document.getElementById('log-status').textContent = msg;
+    document.getElementById('log-dot').className = 'dot ' + state;
+  }
+
+  async function doUpload(f) {
+    const logCard = document.getElementById('log-card');
+    logCard.style.display = 'block';
+    document.getElementById('log-body').innerHTML = '';
+    setLogStatus('Enviando arquivo...', 'active');
+    addLog('Arquivo recebido: ' + f.name, 'info');
+    addLog('Validando tipo e tamanho...', 'info');
+
+    const fd = new FormData();
+    fd.append('file', f);
+
+    try {
+      const r = await fetch(API + '/upload', { method: 'POST', body: fd });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      jobId = d.job_id;
+
+      addLog('Job criado · ID: ' + jobId.substring(0, 16) + '...', 'ok');
+      addLog('Mensagem publicada na fila RabbitMQ', 'ok');
+      setLogStatus('Analisando com IA...', 'active');
+      addLog('Agentes de IA iniciados...', 'info');
+      addLog('Aguardando resposta do GPT-4o...', 'info');
+
+      startPolling();
+
+    } catch (e) {
+      addLog('Erro: ' + e.message, 'warn');
+      setLogStatus('Erro no envio', 'error');
+    }
+  }
+
+  function startPolling() {
+    pollTimer = setInterval(async () => {
+      try {
+        const r = await fetch(API + '/status/' + jobId);
+        const d = await r.json();
+
+        if (d.agent_status && d.agent_status !== lastAgentStatus) {
+          lastAgentStatus = d.agent_status;
+          addLog(d.agent_status, 'info');
+        }
+
+        if (d.status === 'analyzed') {
+          clearInterval(pollTimer);
+          addLog('Análise concluída com sucesso', 'ok');
+          addLog('Relatório gerado e persistido no banco', 'ok');
+          setLogStatus('Concluído', 'done');
+          const rep = await fetch(API + '/report/' + jobId);
+          reportData = (await rep.json()).report;
+          showReport();
+        } else if (d.status === 'error') {
+          clearInterval(pollTimer);
+          addLog('Erro no processamento da IA', 'warn');
+          setLogStatus('Erro', 'error');
+        }
+      } catch (e) {}
+    }, 1500);
+  }
+
+  function showReport() {
+    const card = document.getElementById('report-card');
+    card.style.display = 'block';
+    document.getElementById('report-meta').textContent = 'job_id: ' + jobId;
+    document.getElementById('r-components').innerHTML = reportData.components.map(c => `<span class="comp-tag">${c}</span>`).join('');
+    document.getElementById('r-risks').innerHTML = reportData.risks.map(r => `<div class="risk-item">${r}</div>`).join('');
+    document.getElementById('r-recs').innerHTML = reportData.recommendations.map(r => `<div class="rec-item">${r}</div>`).join('');
+    card.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function downloadJSON() {
+    if (!reportData) return;
+    const data = { job_id: jobId, report: reportData, generated_at: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `archanalyzer-report-${jobId.substring(0, 8)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadPDF() {
+    if (!reportData) return;
+    const content = `
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; color: #1a1a1a; max-width: 800px; margin: 0 auto; }
+          h1 { font-size: 22px; margin-bottom: 4px; }
+          .meta { font-size: 12px; color: #888; font-family: monospace; margin-bottom: 32px; }
+          h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #888; margin: 24px 0 10px; }
+          .tag { display: inline-block; background: #f5f5f3; border: 1px solid #e0e0da; border-radius: 4px; padding: 3px 10px; font-size: 12px; margin: 2px; }
+          .risk { padding: 8px 12px; border-left: 3px solid #E24B4A; background: #FCEBEB; border-radius: 0 4px 4px 0; margin-bottom: 6px; font-size: 13px; color: #501313; }
+          .rec { padding: 8px 12px; border-left: 3px solid #639922; background: #EAF3DE; border-radius: 0 4px 4px 0; margin-bottom: 6px; font-size: 13px; color: #173404; }
+          .footer { margin-top: 40px; font-size: 11px; color: #aaa; border-top: 1px solid #e0e0da; padding-top: 16px; }
+        </style>
+      </head>
+      <body>
+        <h1>Relatório de Análise Arquitetural</h1>
+        <p class="meta">job_id: ${jobId} · gerado em: ${new Date().toLocaleString('pt-BR')}</p>
+        <h2>Componentes identificados</h2>
+        <div>${reportData.components.map(c => `<span class="tag">${c}</span>`).join('')}</div>
+        <h2>Riscos arquiteturais</h2>
+        ${reportData.risks.map(r => `<div class="risk">${r}</div>`).join('')}
+        <h2>Recomendações</h2>
+        ${reportData.recommendations.map(r => `<div class="rec">${r}</div>`).join('')}
+        <div class="footer">Gerado por ArchAnalyzer · Análise automatizada com OpenAI GPT-4o</div>
+      </body>
+      </html>`;
+    const blob = new Blob([content], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    setTimeout(() => { win.print(); }, 500);
+  }
+
+   function resetAll() {
+    clearInterval(pollTimer);
+    jobId = null; reportData = null; lastAgentStatus = null;
+    document.getElementById('log-card').style.display = 'none';
+    document.getElementById('report-card').style.display = 'none';
+    document.getElementById('drop-zone').classList.remove('done');
+    document.getElementById('drop-txt').textContent = 'Arraste um diagrama ou clique para selecionar';
+    document.getElementById('drop-sub').textContent = 'PNG, JPG ou PDF · máx. 10MB';
+    document.getElementById('log-body').innerHTML = '';
+    document.getElementById('fi').value = '';    
+  }
+</script>
+</body>
+</html>
